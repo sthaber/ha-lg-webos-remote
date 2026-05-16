@@ -64,9 +64,32 @@ config entry in `.storage/`, so no credentials need to be configured here.
 
 ## Dashboard
 
-An example dashboard view lives in [`dashboard.yaml`](dashboard.yaml).
-Copy its contents into a view's raw YAML editor (Edit Dashboard → Take
-Control → raw config).
+[`dashboard.yaml`](dashboard.yaml) is a full YAML-mode dashboard you can
+either *register live* (recommended) or copy from.
+
+**Register as a live dashboard.** Add to `configuration.yaml` (alongside
+the `packages:` block):
+
+```yaml
+lovelace:
+  mode: storage   # leave the default dashboard storage-managed
+  dashboards:
+    webos-tv:     # the URL path; YAML-mode dashboards must contain a hyphen
+      mode: yaml
+      filename: ha-lg-webos-remote/dashboard.yaml
+      title: TV
+      icon: mdi:television
+      show_in_sidebar: true
+      require_admin: false
+```
+
+After a restart, the dashboard appears in the sidebar and is read directly
+from this file. `git pull`ing future changes shows up after another
+restart (or a `lovelace.reload_resources` for asset-only changes).
+
+**Copy as a snippet.** Open `dashboard.yaml`, extract the contents of
+`views[0]`, and paste into a view's raw YAML editor (Edit Dashboard →
+Take Control → raw config).
 
 When the TV is off, the four read-dependent entities go to `unavailable`
 (their `availability:` template depends on the polling script reaching the
