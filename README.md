@@ -10,13 +10,14 @@ settings the built-in `webostv` integration doesn't surface:
 | `switch.lg_webos_tv_screen` | `'Active'` ↔ on, anything else ↔ off | Calls `turnOnScreen` / `turnOffScreen` |
 | `switch.lg_webos_tv_eye_comfort_mode` | TV's Eye Comfort Mode | Sets `picture.eyeComfortMode` |
 
-Pure YAML, no custom integration. The TV is polled every 5 s by a small
-Python helper that piggybacks on `aiowebostv` (already installed by the
-built-in `webostv` integration). Writes go through the built-in
-`webostv.command` service.
+A YAML package plus a small Python polling script — no custom integration,
+no `manifest.json`, no HACS install. The script (`scripts/read_lg_tv.py`)
+piggybacks on `aiowebostv` (already installed by the built-in `webostv`
+integration) to read state from the TV every 5 s; writes go through the
+built-in `webostv.command` service.
 
-Tested on an LG C5 (webOS 25). The setting keys are common across recent
-LG OLEDs, so B / C / G series of similar vintage should work.
+Tested on an LG C5 (webOS 25). Other recent LG webOS OLEDs likely work but
+haven't been tested.
 
 ## Requirements
 
@@ -63,39 +64,9 @@ config entry in `.storage/`, so no credentials need to be configured here.
 
 ## Dashboard
 
-A working dashboard for these controls (paste into the raw editor of any
-view):
-
-```yaml
-type: sections
-sections:
-  - type: grid
-    cards:
-      - type: heading
-        heading: LG webOS TV
-      - type: tile
-        entity: media_player.lg_webos_tv
-        name: Power
-        icon: mdi:power
-        tap_action:
-          action: toggle
-      - type: tile
-        entity: select.lg_webos_tv_power_saving_step
-        name: Power Saving Step
-      - type: tile
-        entity: switch.lg_webos_tv_screen
-        name: Screen
-        features:
-          - type: toggle
-      - type: tile
-        entity: switch.lg_webos_tv_eye_comfort_mode
-        name: Eye Comfort Mode
-        features:
-          - type: toggle
-      - type: tile
-        entity: select.lg_webos_tv_hdmi_input
-        name: HDMI Input
-```
+An example dashboard view lives in [`dashboard.yaml`](dashboard.yaml).
+Copy its contents into a view's raw YAML editor (Edit Dashboard → Take
+Control → raw config).
 
 When the TV is off, the four read-dependent entities go to `unavailable`
 (their `availability:` template depends on the polling script reaching the
@@ -123,16 +94,6 @@ requires Wake-on-LAN, which is out of scope for this package.
   documented in HA's docs.
 - **Polling lag.** Changes made via the TV's own remote show up in HA
   within ~5 s (one `scan_interval`).
-- **TruMotion sliders.** `truMotionMode` is readable via SSAP with
-  `current_app: true`, but the per-slider `truMotionJudder` /
-  `truMotionBlur` keys are not on LG's SSAP allowlist; writing them
-  requires the [alert-hack technique][1] used by `aiopylgtv`, which
-  doesn't return values (so they're write-only). Left out of this package.
-- **Dolby Vision picture mode** hides some keys. The current `pictureMode`
-  affects which settings the TV will return; if you find an entity stuck
-  showing the wrong value, check whether the TV is in a Dolby HDR mode.
-
-[1]: https://github.com/bendavid/aiopylgtv/blob/master/aiopylgtv/webos_client.py
 
 ## Extending
 

@@ -1,0 +1,34 @@
+# Example dashboard for the entities created by lg_webos_remote.yaml.
+#
+# Paste into a view's raw YAML editor (Edit Dashboard → Take Control → raw
+# config). Adjust `media_player.lg_webos_tv` and the entity names if your
+# install differs.
+
+type: sections
+sections:
+  - type: grid
+    cards:
+      - type: heading
+        heading: LG webOS TV
+      - type: tile
+        entity: media_player.lg_webos_tv
+        name: Power
+        icon: mdi:power
+        tap_action:
+          action: toggle
+      - type: tile
+        entity: select.lg_webos_tv_power_saving_step
+        name: Power Saving Step
+      - type: tile
+        entity: switch.lg_webos_tv_screen
+        name: Screen
+        features:
+          - type: toggle
+      - type: tile
+        entity: switch.lg_webos_tv_eye_comfort_mode
+        name: Eye Comfort Mode
+        features:
+          - type: toggle
+      - type: tile
+        entity: select.lg_webos_tv_hdmi_input
+        name: HDMI Input
