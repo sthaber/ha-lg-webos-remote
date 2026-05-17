@@ -37,7 +37,7 @@ Then add this to `configuration.yaml`:
 ```yaml
 homeassistant:
   packages:
-    lg_webos_remote: !include ha-lg-webos-remote/lg_webos_remote.yaml
+    lg_webos_remote: !include ha-lg-webos-remote/entities.yaml
 ```
 
 Restart HA. After the first 5 s poll cycle you should have these entities:
@@ -50,7 +50,7 @@ Restart HA. After the first 5 s poll cycle you should have these entities:
 
 ## Configuration
 
-Two spots in `lg_webos_remote.yaml` you may want to edit:
+Two spots in `entities.yaml` you may want to edit:
 
 1. **`entity_id: media_player.lg_webos_tv`** — change throughout the file
    if your TV's `media_player` entity_id differs.

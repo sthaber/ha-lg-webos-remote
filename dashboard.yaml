@@ -1,4 +1,4 @@
-# Dashboard for the entities created by lg_webos_remote.yaml.
+# Dashboard for the entities created by entities.yaml.
 #
 # Used in two ways:
 # 1. As a YAML-mode dashboard, registered via `lovelace:` in
