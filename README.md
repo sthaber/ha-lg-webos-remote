@@ -11,7 +11,7 @@ settings the built-in `webostv` integration doesn't surface:
 | `switch.lg_webos_tv_eye_comfort_mode` | TV's Eye Comfort Mode | Sets `picture.eyeComfortMode` |
 
 A YAML package plus a small Python polling script — no custom integration,
-no `manifest.json`, no HACS install. The script (`read_lg_tv.py`)
+no `manifest.json`, no HACS install. The script (`read_tv.py`)
 piggybacks on `aiowebostv` (already installed by the built-in `webostv`
 integration) to read state from the TV every 5 s; writes go through the
 built-in `webostv.command` service.
@@ -99,7 +99,7 @@ requires Wake-on-LAN, which is out of scope for this package.
 
 ## How it works
 
-- `read_lg_tv.py` connects via `aiowebostv` with the credentials
+- `read_tv.py` connects via `aiowebostv` with the credentials
   cached in `.storage/`, fetches the three relevant settings in two SSAP
   requests, and prints the result as JSON.
 - `sensor.lg_webos_tv_state` is a `command_line` sensor that runs the

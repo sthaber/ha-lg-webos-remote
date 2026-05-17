@@ -17,7 +17,7 @@ command_line:
   - sensor:
       name: LG webOS TV State
       unique_id: lg_webos_tv_state
-      command: 'python3 /config/ha-lg-webos-remote/read_lg_tv.py'
+      command: 'python3 /config/ha-lg-webos-remote/read_tv.py'
       command_timeout: 4
       scan_interval: 5
       value_template: "{{ value_json.energy_saving | default('unknown') }}"
