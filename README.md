@@ -16,6 +16,12 @@ piggybacks on `aiowebostv` (already installed by the built-in `webostv`
 integration) to read state from the TV every 5 s; writes go through the
 built-in `webostv.command` service.
 
+I built this to change settings quickly that are otherwise deeply buried
+in slow menus. In particular, the power saving step is really the only way
+to adjust brightness globally across video modes. There are a slew of
+horrible LG remotes on the iOS store but none of them that I looked at
+seemed to allow adjusting these specific settings.
+
 Tested on an LG C5 (webOS 25). Other recent LG webOS OLEDs likely work but
 haven't been tested.
 
