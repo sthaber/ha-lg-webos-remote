@@ -3,7 +3,7 @@
 # Provides read+write controls for settings the built-in `webostv`
 # integration doesn't surface: power saving step, screen on/off, eye
 # comfort mode, HDMI input. State is mirrored from the TV by a small
-# polling script; writes go through the `webostv.command` service.
+# polling script, which also carries out the settings writes.
 #
 # Install: see https://github.com/sthaber/ha-lg-webos-remote
 #
@@ -13,11 +13,17 @@
 #   2. The HDMI input options list — change to the labels you've set on
 #      your TV (the labels visible in webostv's `source_list`).
 
+# Settings writes go through tv.py, not the `webostv.command` service. The
+# TV rejects setSystemSettings from the manifest aiowebostv registers with;
+# tv.py registers with LG's signed manifest instead. See tv.py for detail.
+shell_command:
+  lg_webos_tv_set: 'python3 /config/ha-lg-webos-remote/tv.py set {{ category }} {{ key }} {{ value }}'
+
 command_line:
   - sensor:
       name: LG webOS TV State
       unique_id: lg_webos_tv_state
-      command: 'python3 /config/ha-lg-webos-remote/read_tv.py'
+      command: 'python3 /config/ha-lg-webos-remote/tv.py'
       command_timeout: 4
       scan_interval: 5
       value_template: "{{ value_json.energy_saving | default('unknown') }}"
@@ -37,15 +43,15 @@ template:
         state: >-
           {{ {'auto':'Auto','off':'Off','min':'Minimum','med':'Medium','max':'Maximum'}.get(states('sensor.lg_webos_tv_state'), '') }}
         select_option:
-          - action: webostv.command
+          - action: shell_command.lg_webos_tv_set
             data:
-              entity_id: media_player.lg_webos_tv
-              command: settings/setSystemSettings
-              payload:
-                category: picture
-                settings:
-                  energySaving: >-
-                    {{ {'Auto':'auto','Off':'off','Minimum':'min','Medium':'med','Maximum':'max'}[option] }}
+              category: picture
+              key: energySaving
+              value: >-
+                {{ {'Auto':'auto','Off':'off','Minimum':'min','Medium':'med','Maximum':'max'}[option] }}
+          - action: homeassistant.update_entity
+            target:
+              entity_id: sensor.lg_webos_tv_state
       - name: LG webOS TV HDMI Input
         unique_id: lg_webos_tv_hdmi_input
         icon: mdi:hdmi-port
@@ -53,7 +59,7 @@ template:
           {{ state_attr('sensor.lg_webos_tv_state','power_state') is not none }}
         # Edit this list to match the input labels you've set on your TV.
         options: >-
-          {{ ['PS5', 'AVR', 'Switch 2', 'Apple TV'] }}
+          {{ ['PS5', 'AVR', 'Switch2 Game Console', 'Apple TV'] }}
         state: >-
           {{ state_attr('media_player.lg_webos_tv','source') or '' }}
         select_option:
@@ -69,6 +75,8 @@ template:
           {{ state_attr('sensor.lg_webos_tv_state','power_state') is not none }}
         state: >-
           {{ state_attr('sensor.lg_webos_tv_state','power_state') == 'Active' }}
+        # Screen on/off needs CONTROL_TV_SCREEN, which the TV still grants
+        # to the built-in integration, so these stay on webostv.command.
         turn_on:
           - action: webostv.command
             continue_on_error: true
@@ -89,20 +97,20 @@ template:
         state: >-
           {{ state_attr('sensor.lg_webos_tv_state','eye_comfort_mode') == 'on' }}
         turn_on:
-          - action: webostv.command
+          - action: shell_command.lg_webos_tv_set
             data:
-              entity_id: media_player.lg_webos_tv
-              command: settings/setSystemSettings
-              payload:
-                category: picture
-                settings:
-                  eyeComfortMode: "on"
+              category: picture
+              key: eyeComfortMode
+              value: 'on'
+          - action: homeassistant.update_entity
+            target:
+              entity_id: sensor.lg_webos_tv_state
         turn_off:
-          - action: webostv.command
+          - action: shell_command.lg_webos_tv_set
             data:
-              entity_id: media_player.lg_webos_tv
-              command: settings/setSystemSettings
-              payload:
-                category: picture
-                settings:
-                  eyeComfortMode: "off"
+              category: picture
+              key: eyeComfortMode
+              value: 'off'
+          - action: homeassistant.update_entity
+            target:
+              entity_id: sensor.lg_webos_tv_state
