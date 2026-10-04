@@ -14,8 +14,9 @@
 #      your TV (the labels visible in webostv's `source_list`).
 
 # Settings writes go through tv.py, not the `webostv.command` service. The
-# TV rejects setSystemSettings from the manifest aiowebostv registers with;
-# tv.py registers with LG's signed manifest instead. See tv.py for detail.
+# TV rejects setSystemSettings from ordinary clients, so tv.py runs the
+# write as a luna:// call attached to a notification alert, which takes two
+# requests. See tv.py for detail.
 shell_command:
   lg_webos_tv_set: 'python3 /config/ha-lg-webos-remote/tv.py set {{ category }} {{ key }} {{ value }}'
 

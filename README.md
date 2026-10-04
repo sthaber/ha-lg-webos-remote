@@ -21,7 +21,7 @@ to adjust brightness globally across video modes. There are a slew of
 horrible LG remotes on the iOS store but none of them that I looked at
 seemed to allow adjusting these specific settings.
 
-Tested on an LG C5 (webOS 25, release 10.3.1).
+Tested on an LG C5 (webOS 25, firmware 33.31.69).
 
 ## Requirements
 
@@ -62,7 +62,7 @@ Two spots in `entities.yaml` you may want to edit:
 
 1. **`entity_id: media_player.lg_webos_tv`** — change throughout the file
    if your TV's `media_player` entity_id differs.
-2. **HDMI input list** — `['PS5', 'AVR', 'Switch2 Game Console', 'Apple TV']` —
+2. **HDMI input list** — `['PS5 Game Console', 'AVR', 'Switch 2', 'Apple OTT']` —
    change to match the labels you've set on your TV. These have to match the
    TV's labels exactly; if the active input isn't in the list, the entity
    reads `unknown`. (Find them in the TV's input menu, or read
@@ -124,31 +124,22 @@ requires Wake-on-LAN, which is out of scope for this package.
 
 ### Why the settings writes don't use `webostv.command`
 
-On recent firmware the TV answers `settings/setSystemSettings` with
-`401 insufficient permissions` for every category, so the two settings
-entities can't use the `webostv.command` service.
+The TV answers `settings/setSystemSettings` with `401 insufficient
+permissions` for every category. A webOS client sends a permission manifest
+when it pairs, and the TV only honours `WRITE_SETTINGS` from a manifest
+carrying an LG signature. Earlier versions of this package borrowed the
+public `com.lge.test` signed manifest; firmware 33.31.69 blacklisted that
+certificate (`403 Pairing rejected: blacklisted certificate detected`), so
+that path is gone.
 
-A webOS client sends a permission manifest when it pairs. `aiowebostv` asks
-for `WRITE_SETTINGS` in the manifest's plain permission list, and the TV
-ignores it there — it only honours that permission from a `signed` block
-carrying an LG signature, which is what LG's own remote app sends.
-[`handshake.json`](handshake.json) is a copy of that manifest, and `tv.py`
-swaps it in before connecting. Everything else the package needs
-(`READ_SETTINGS`, `CONTROL_TV_SCREEN`) the TV still grants from the plain
-list, which is why only these two writes had to move and why reads were
-never affected.
-
-`handshake.json` holds no secret of yours. It's the same public manifest
-shipped in a number of open-source webOS clients, and the TV still shows
-the usual pairing prompt.
-
-Two details worth knowing if you hack on this:
-
-- `aiowebostv` binds `REGISTRATION_MESSAGE` at import time, so the swap has
-  to be made on the `webos_client` module, not on `handshake`.
-- The permissions a client key carries are fixed when it pairs. An existing
-  key works fine here, because the signed manifest is re-sent and honoured
-  on every connect — re-pairing is not needed.
+Instead, `tv.py` runs the write as a `luna://` call attached to a
+notification alert. `system.notifications/createAlert` takes a luna URI and
+parameters as the alert's close action, and `closeAlert` runs it. This needs
+only `WRITE_NOTIFICATION_ALERT`, which the TV grants to ordinary clients, and
+it's the same mechanism bscpylgtv and newer aiowebostv use for luna calls.
+Because it takes two requests (the second needs the `alertId` from the
+first), it can't be expressed as a single `webostv.command` call, hence the
+`shell_command`.
 
 ## Known limitations
 

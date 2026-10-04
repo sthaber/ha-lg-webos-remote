@@ -7,12 +7,14 @@ Usage:
 Connection details come from the webostv config entry in HA storage, so
 nothing here needs editing when the TV is re-paired.
 
-Writes need the LG-signed handshake in handshake.json. aiowebostv registers
-with a manifest that asks for WRITE_SETTINGS in its plain permission list,
-which recent TV firmware ignores -- setSystemSettings then fails with
-"401 insufficient permissions". LG's own remote app sends a manifest with a
-signed block that carries WRITE_SETTINGS along with an LG signature, and the
-TV honours that. handshake.json is a copy of it.
+Writes can't go through settings/setSystemSettings directly: the TV answers
+"401 insufficient permissions" because WRITE_SETTINGS is only granted to
+manifests carrying an LG signature, and recent firmware blacklists the
+public one. Instead the write rides on a notification alert. createAlert
+accepts a luna:// URI as its close action, and closing the alert runs it.
+This is the same mechanism bscpylgtv and newer aiowebostv use for luna
+calls, and it needs only WRITE_NOTIFICATION_ALERT, which the TV grants to
+ordinary clients.
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ import sys
 from pathlib import Path
 
 CONFIG_ENTRIES = Path("/config/.storage/core.config_entries")
-HANDSHAKE = Path(__file__).with_name("handshake.json")
+LUNA_SET_SYSTEM_SETTINGS = "luna://com.webos.settingsservice/setSystemSettings"
 
 # The write path builds a shell command, so keep arguments to plain tokens.
 TOKEN = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -38,25 +40,6 @@ def tv_creds() -> tuple[str, str]:
     raise RuntimeError("no webostv config entry")
 
 
-def use_signed_handshake() -> None:
-    """Register with LG's signed manifest instead of aiowebostv's own.
-
-    aiowebostv binds REGISTRATION_MESSAGE at import time, so the swap has to
-    be made on the webos_client module rather than on handshake.
-    """
-    import aiowebostv.webos_client as webos_client
-
-    webos_client.REGISTRATION_MESSAGE = {
-        "type": "register",
-        "id": "register_0",
-        "payload": {
-            "forcePairing": False,
-            "pairingType": "PROMPT",
-            "manifest": json.loads(HANDSHAKE.read_text()),
-        },
-    }
-
-
 async def connect(timeout: int, attempts: int = 1):
     """Open a connection, retrying if the TV refuses.
 
@@ -67,7 +50,6 @@ async def connect(timeout: int, attempts: int = 1):
     """
     from aiowebostv import WebOsClient
 
-    use_signed_handshake()
     host, key = tv_creds()
     last_error: Exception | None = None
     for attempt in range(attempts):
@@ -81,6 +63,23 @@ async def connect(timeout: int, attempts: int = 1):
                 await asyncio.sleep(0.5 * (attempt + 1))
     assert last_error is not None
     raise last_error
+
+
+async def luna_request(client, uri: str, params: dict) -> None:
+    """Run a luna:// call by attaching it to an alert and closing the alert."""
+    action = {"uri": uri, "params": params}
+    alert = await client.request(
+        "system.notifications/createAlert",
+        {
+            "message": " ",
+            "buttons": [{"label": "", "onClick": uri, "params": params}],
+            "onclose": action,
+            "onfail": action,
+        },
+    )
+    await client.request(
+        "system.notifications/closeAlert", {"alertId": alert["alertId"]}
+    )
 
 
 async def read_state() -> dict[str, object]:
@@ -113,8 +112,9 @@ async def write_setting(category: str, key: str, value: str) -> int:
     client = None
     try:
         client = await connect(5, attempts=4)
-        await client.request(
-            "settings/setSystemSettings",
+        await luna_request(
+            client,
+            LUNA_SET_SYSTEM_SETTINGS,
             {"category": category, "settings": {key: value}},
         )
     except Exception as err:
