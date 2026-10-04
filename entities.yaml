@@ -60,7 +60,7 @@ template:
           {{ state_attr('sensor.lg_webos_tv_state','power_state') is not none }}
         # Edit this list to match the input labels you've set on your TV.
         options: >-
-          {{ ['PS5', 'AVR', 'Switch2 Game Console', 'Apple TV'] }}
+          {{ ['PS5 Game Console', 'AVR', 'Switch 2', 'Apple OTT'] }}
         state: >-
           {{ state_attr('media_player.lg_webos_tv','source') or '' }}
         select_option:
