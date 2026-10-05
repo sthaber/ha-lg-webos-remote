@@ -4,6 +4,12 @@ Usage:
     tv.py                          print current TV state as JSON on stdout
     tv.py set CATEGORY KEY VALUE   change one setting
 
+The TV sometimes takes a few seconds to accept a connection while it's on.
+So that one slow poll doesn't make every entity unavailable, reading falls
+back to the last good reading if it's under GRACE_SECONDS old. A TV that's
+really off stops answering for longer than that, and the error comes
+through.
+
 Connection details come from the webostv config entry in HA storage, so
 nothing here needs editing when the TV is re-paired.
 
@@ -23,10 +29,20 @@ import asyncio
 import json
 import re
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 CONFIG_ENTRIES = Path("/config/.storage/core.config_entries")
 LUNA_SET_SYSTEM_SETTINGS = "luna://com.webos.settingsservice/setSystemSettings"
+
+# Last good reading, for riding out a slow poll. Lives in the container's
+# temp directory, so a restart clears it.
+LAST_STATE = Path(tempfile.gettempdir()) / "lg_webos_tv_last_state.json"
+GRACE_SECONDS = 30
+
+# The foreground app while an HDMI input is showing, e.g. com.webos.app.hdmi2.
+HDMI_APP = re.compile(r"^com\.webos\.app\.hdmi(\d+)$")
 
 # The write path builds a shell command, so keep arguments to plain tokens.
 TOKEN = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -94,9 +110,14 @@ async def read_state() -> dict[str, object]:
         power = await client.request(
             "com.webos.service.tvpower/power/getPowerState", {}
         )
+        app = await client.request(
+            "com.webos.applicationManager/getForegroundAppInfo", {}
+        )
         out["energy_saving"] = picture["settings"]["energySaving"]
         out["eye_comfort_mode"] = picture["settings"]["eyeComfortMode"]
         out["power_state"] = power.get("state")
+        hdmi = HDMI_APP.match(app.get("appId") or "")
+        out["hdmi_port"] = int(hdmi[1]) if hdmi else None
     except Exception as err:
         out["error"] = f"{type(err).__name__}: {err}"
     finally:
@@ -129,10 +150,30 @@ async def write_setting(category: str, key: str, value: str) -> int:
     return 0
 
 
+def read_state_with_grace() -> dict[str, object]:
+    """Read the TV, falling back to a recent good reading if this one fails."""
+    out = asyncio.run(read_state())
+    now = time.time()
+    if "error" not in out:
+        try:
+            LAST_STATE.write_text(json.dumps({"time": now, "state": out}))
+        except OSError:
+            pass
+        return out
+    try:
+        last = json.loads(LAST_STATE.read_text())
+    except (OSError, ValueError):
+        return out
+    if now - last["time"] < GRACE_SECONDS:
+        # Keep the error visible as an attribute; entities stay available.
+        return {**last["state"], "error": out["error"]}
+    return out
+
+
 def main() -> int:
     args = sys.argv[1:]
     if not args:
-        print(json.dumps(asyncio.run(read_state())))
+        print(json.dumps(read_state_with_grace()))
         return 0
 
     if args[0] != "set" or len(args) != 4:

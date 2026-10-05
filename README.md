@@ -6,7 +6,7 @@ settings the built-in `webostv` integration doesn't surface:
 | Entity | Reads | Writes |
 | --- | --- | --- |
 | `select.lg_webos_tv_power_saving_step` | TV's Energy Saving step (Auto / Off / Minimum / Medium / Maximum) | Sets `picture.energySaving` |
-| `select.lg_webos_tv_hdmi_input` | Current source (from the `media_player` entity) | Calls `media_player.select_source` |
+| `select.lg_webos_tv_hdmi_input` | Which HDMI port is showing | Switches to that port with `webostv.command` |
 | `switch.lg_webos_tv_screen` | `'Active'` ↔ on, anything else ↔ off | Calls `turnOnScreen` / `turnOffScreen` |
 | `switch.lg_webos_tv_eye_comfort_mode` | TV's Eye Comfort Mode | Sets `picture.eyeComfortMode` |
 
@@ -62,11 +62,10 @@ Two spots in `entities.yaml` you may want to edit:
 
 1. **`entity_id: media_player.lg_webos_tv`** — change throughout the file
    if your TV's `media_player` entity_id differs.
-2. **HDMI input list** — `['PS5 Game Console', 'AVR', 'Switch 2', 'Apple OTT']` —
-   change to match the labels you've set on your TV. These have to match the
-   TV's labels exactly; if the active input isn't in the list, the entity
-   reads `unknown`. (Find them in the TV's input menu, or read
-   `media_player.lg_webos_tv` → `source_list` attribute in Developer Tools.)
+2. **`hdmi_inputs`** under `template:`: the name to show in HA for each
+   HDMI port, e.g. `PS5: 1`. Leave out empty ports. Switching goes by port
+   number, so it keeps working when the TV renames an input, which it does
+   on its own whenever a connected device announces a new name.
 
 The script reads host + client key from your existing `webostv`
 config entry in `.storage/`, so no credentials need to be configured here.
@@ -117,10 +116,14 @@ requires Wake-on-LAN, which is out of scope for this package.
 - The four `select`/`switch` entities are `template:` entities. Their
   `state:` reads from the sensor. Power saving step and eye comfort mode
   write via `shell_command.lg_webos_tv_set` → `tv.py set`; screen on/off
-  writes via the `webostv.command` service; HDMI input writes via
-  `media_player.select_source`.
+  writes via the `webostv.command` service, as does switching HDMI input
+  (`tv/switchInput` with the port from `hdmi_inputs`).
 - `availability:` on each entity is keyed off whether the script's last
   poll succeeded, so they go `unavailable` together when the TV is off.
+- The TV sometimes takes a few seconds to accept a connection even while
+  it's on. So that a single slow poll doesn't blank every entity, the
+  script falls back to its last good reading if that's under 30 s old,
+  with the error still visible in the sensor's `error` attribute.
 
 ### Why the settings writes don't use `webostv.command`
 
@@ -147,12 +150,13 @@ first), it can't be expressed as a single `webostv.command` call, hence the
   websocket; waking from off requires WoL set up separately. The path is
   documented in HA's docs.
 - **Polling lag.** Changes made via the TV's own remote show up in HA
-  within ~5 s (one `scan_interval`). The write paths ask the sensor to
+  within ~5 s (one `scan_interval`). Turning the TV off takes up to 30 s
+  to show, because of the fallback to the last good reading. The write paths ask the sensor to
   refresh immediately, so the UI doesn't wait a full cycle.
 - **The TV drops connections that arrive close together.** Every call opens
   its own websocket, so a write landing next to a poll can lose the race.
-  Writes retry a few times; a lost read just leaves the entities
-  unavailable until the next poll.
+  Writes retry a few times; a lost read is covered by the last good
+  reading.
 
 ## Extending
 

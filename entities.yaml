@@ -10,8 +10,9 @@
 # Two things you may want to edit:
 #   1. `entity_id: media_player.lg_webos_tv` (used throughout) — change if
 #      your TV's media_player entity_id differs.
-#   2. The HDMI input options list — change to the labels you've set on
-#      your TV (the labels visible in webostv's `source_list`).
+#   2. `hdmi_inputs` under `template:` — the names to show for each HDMI
+#      port. Switching goes by port number, so the TV renaming its inputs
+#      (it takes names from connected devices) doesn't break anything.
 
 # Settings writes go through tv.py, not the `webostv.command` service. The
 # TV rejects setSystemSettings from ordinary clients, so tv.py runs the
@@ -31,10 +32,18 @@ command_line:
       json_attributes:
         - power_state
         - eye_comfort_mode
+        - hdmi_port
         - error
 
 template:
-  - select:
+  - variables:
+      # HDMI port number for each name shown in HA. Edit to match what's
+      # plugged in; leave out empty ports.
+      hdmi_inputs:
+        PS5: 1
+        Apple TV: 2
+        Switch 2: 3
+    select:
       - name: LG webOS TV Power Saving Step
         unique_id: lg_webos_tv_power_saving_step
         icon: mdi:leaf
@@ -58,16 +67,21 @@ template:
         icon: mdi:hdmi-port
         availability: >-
           {{ state_attr('sensor.lg_webos_tv_state','power_state') is not none }}
-        # Edit this list to match the input labels you've set on your TV.
-        options: >-
-          {{ ['PS5 Game Console', 'AVR', 'Switch 2', 'Apple OTT'] }}
+        options: "{{ hdmi_inputs | list }}"
+        # Blank when an app or an unlisted port is showing.
         state: >-
-          {{ state_attr('media_player.lg_webos_tv','source') or '' }}
+          {% set port = state_attr('sensor.lg_webos_tv_state','hdmi_port') %}
+          {%- for name, p in hdmi_inputs.items() if p == port %}{{ name }}{% endfor %}
         select_option:
-          - action: media_player.select_source
+          - action: webostv.command
             data:
               entity_id: media_player.lg_webos_tv
-              source: "{{ option }}"
+              command: tv/switchInput
+              payload:
+                inputId: "HDMI_{{ hdmi_inputs[option] }}"
+          - action: homeassistant.update_entity
+            target:
+              entity_id: sensor.lg_webos_tv_state
   - switch:
       - name: LG webOS TV Screen
         unique_id: lg_webos_tv_screen
